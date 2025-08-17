@@ -43,6 +43,14 @@ INSTALLED_APPS = [
      'rest_framework',
      'rest_framework.authtoken',
      'dj_rest_auth',
+
+     #gym_management apps
+      # Your apps
+    'users',
+    'memberships',
+    'payments',
+    'documents',
+    'activity_logs',
 ]
 
 MIDDLEWARE = [
@@ -156,3 +164,5 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
 }
+#the user model
+AUTH_USER_MODEL = "users.User"
