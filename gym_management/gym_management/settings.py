@@ -43,6 +43,7 @@ INSTALLED_APPS = [
      'rest_framework',
      'rest_framework.authtoken',
      'dj_rest_auth',
+     'rest_framework_simplejwt.token_blacklist',
 
      #gym_management apps
       # Your apps
@@ -166,3 +167,11 @@ SIMPLE_JWT = {
 }
 #the user model
 AUTH_USER_MODEL = "users.User"
+# to allow js to read the CSRF cookie
+CSRF_COOKIE_HTTPONLY = False
+
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # For sessions
+    # (Your JWT backend if you have custom one)
+]
