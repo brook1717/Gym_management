@@ -9,6 +9,7 @@ class Admin_site_Configurations(UserAdmin):
     ordering=('-full_name',)
     list_display = ('phone_number', 'full_name', 'email', 'role', 'is_active', 'is_staff')
     search_fields = ['phone_number', 'full_name', 'email']
+    list_editable = ('role', 'is_active')
 
 
     fieldsets =(

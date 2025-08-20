@@ -1,15 +1,15 @@
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import User
-from rest_framework.exceptions import AuthenticationFailed
 from .permissions import AdminOnly
 import jwt, datetime
 from .serializers import Users_serializer, RegisterSerializer, LogoutSerializer
 from rest_framework import generics, permissions
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from .permissions import AdminOnly, StaffOrAdmin, IsSelfOrAdmin
 
 class Registeration_view(APIView):
     authentication_classes = [] 
@@ -29,6 +29,18 @@ class Login_view(APIView):
         password = request.data['password']
 
         user = User.objects.filter(phone_number=phone_number).first()
+
+        #validation
+        if not password:
+            raise ValidationError("Password is required")
+        
+        if not phone_number and not email:
+            raise ValidationError("Phone number or email is required")
+        if phone_number:
+            user = User.objects.filter(phone_number=phone_number).first()
+        else:
+            user = User.objects.filter(email=email).first()
+        
 
         if user is None:
             raise AuthenticationFailed("User not Found")
@@ -59,19 +71,14 @@ class Login_view(APIView):
         access = str(refresh.access_token)
         return Response({
             "access": access,
-            "refresh": str(refresh)
+            "refresh": str(refresh),
+            "user": { 
+                "id": user.id,
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "role": user.role
+            }
             })
-
-
-
-
-        # return response
-#authenticated user
-
-class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
-    serializer_class = Users_serializer
-    permission_classes = [AdminOnly]
 
 
 
@@ -87,3 +94,27 @@ class Logout_view(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"Message":"User logged out"})
+    
+
+
+    
+#admin permision
+
+class UserListView(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = Users_serializer
+    permission_classes = [AdminOnly]
+
+#admin or member/self
+class UserDetailView(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = Users_serializer
+    permission_classes = [IsSelfOrAdmin]
+
+class UserProfileView(generics.RetrieveAPIView):
+    serializer_class = Users_serializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        return self.request.user
+
