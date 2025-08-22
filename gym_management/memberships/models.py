@@ -5,7 +5,7 @@ from django.conf import settings
 PLAN_CHOICES = [
     ('standard',  'Standard'),
     ('premium', 'Premium'),
-    ('liferime', 'Lifetime'),
+    ('lifetime', 'Lifetime'),
 ]
 
 class Membership(models.Model):
