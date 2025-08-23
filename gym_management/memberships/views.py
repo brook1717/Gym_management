@@ -1,11 +1,12 @@
 from django.shortcuts import render
-from rest_framework import viewsets
+from rest_framework import viewsets, generics
 from rest_framework.permissions import IsAuthenticated
 from .models import Membership
-from .serializers import MembershipSerializer, MembershipCreateSerializer
+from .serializers import MembershipSerializer, MembershipCreateSerializer, MembershipUpdateSerializer
 
 from users.permissions import AdminOnly,  StaffOrAdmin, IsSelfOrAdmin
 from rest_framework.response import Response
+from django.db import transaction
 
 
 
@@ -45,3 +46,34 @@ class MembershipViewSet(viewsets.ModelViewSet):
 
 
 
+class MembershipUpdateView(generics.UpdateAPIView):
+    queryset = Membership.objects.all()
+    serializer_class = MembershipUpdateSerializer
+    permission_classes = [StaffOrAdmin]
+    
+    def update(self, request, *args, **kwargs):
+        membership = self.get_object()
+        
+        with transaction.atomic():
+          
+            locked_membership = Membership.objects.select_for_update().get(pk=membership.pk)
+            serializer = self.get_serializer(locked_membership, data=request.data)
+            serializer.is_valid(raise_exception=True)
+           
+            old_plan = locked_membership.plan_type
+            old_expiry = locked_membership.expiration_date
+            
+       
+            self.perform_update(serializer)
+            updated_membership = serializer.instance
+            
+
+            print(f"\n=== MEMBERSHIP UPDATE ACTIVITY ===")
+            print(f"Action: MEMBERSHIP_UPDATED")
+            print(f"Performed by: {request.user} (ID: {request.user.id})")
+            print(f"Target user: {updated_membership.user} (ID: {updated_membership.user.id})")
+            print(f"Old plan: {old_plan}, New plan: {updated_membership.plan_type}")
+            print(f"Old expiry: {old_expiry}, New expiry: {updated_membership.expiration_date}")
+            print("==================================\n")
+        
+        return Response(serializer.data)
