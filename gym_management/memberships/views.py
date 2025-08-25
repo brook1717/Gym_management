@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets, generics
+from rest_framework import viewsets, generics, status
 from rest_framework.permissions import IsAuthenticated
 from .models import Membership
 from .serializers import MembershipSerializer, MembershipCreateSerializer, MembershipUpdateSerializer
@@ -37,6 +37,11 @@ class MembershipViewSet(viewsets.ModelViewSet):
 
         read_serializer = MembershipSerializer(membership)
         return Response(read_serializer.data)
+    def destroy(self, request, *args, **kwargs):
+        membership = self.get_object()
+        
+        membership.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_queryset(self):
         user = self.request.user
