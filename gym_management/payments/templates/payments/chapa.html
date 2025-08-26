@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - {{ title }}</title>
+</head>
+<body>
+    <h2>Complete Your Payment</h2>
+    <p>Amount: {{ amount }} ETB</p>
+    <p>Description: {{ description }}</p>
+    
+    <form method="POST" action="https://api.chapa.co/v1/hosted/pay">
+        <input type="hidden" name="public_key" value="{{ public_key }}" />
+        <input type="hidden" name="tx_ref" value="{{ tx_ref }}" />
+        <input type="hidden" name="amount" value="{{ amount }}" />
+        <input type="hidden" name="currency" value="ETB" />
+        <input type="hidden" name="email" value="{{ email }}" />
+        <input type="hidden" name="first_name" value="{{ first_name }}" />
+        <input type="hidden" name="last_name" value="{{ last_name }}" />
+        <input type="hidden" name="title" value="{{ title }}" />
+        <input type="hidden" name="description" value="{{ description }}" />
+        <input type="hidden" name="logo" value="https://chapa.link/asset/images/chapa_swirl.svg" />
+        <input type="hidden" name="callback_url" value="{{ callback_url }}" />
+        <input type="hidden" name="return_url" value="{{ return_url }}" />
+        <input type="hidden" name="meta[payment_id]" value="{{ payment_id }}" />
+        
+        <button type="submit" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer;">
+            Pay with Chapa
+        </button>
+    </form>
+</body>
+</html>
