@@ -36,7 +36,8 @@ class MembershipViewSet(viewsets.ModelViewSet):
         
 
         read_serializer = MembershipSerializer(membership)
-        return Response(read_serializer.data)
+        return Response(read_serializer.data,
+                        status=status.HTTP_201_CREATED)
     def destroy(self, request, *args, **kwargs):
         membership = self.get_object()
         
@@ -81,4 +82,5 @@ class MembershipUpdateView(generics.UpdateAPIView):
             print(f"Old expiry: {old_expiry}, New expiry: {updated_membership.expiration_date}")
             print("==================================\n")
         
-        return Response(serializer.data)
+        return Response(serializer.data,
+                        status=status.HTTP_200_OK)

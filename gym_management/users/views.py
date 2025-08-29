@@ -6,7 +6,7 @@ from .models import User
 from .permissions import AdminOnly
 import jwt, datetime
 from .serializers import Users_serializer, RegisterSerializer, LogoutSerializer
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from .permissions import AdminOnly, StaffOrAdmin, IsSelfOrAdmin
@@ -18,7 +18,8 @@ class Registeration_view(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(Users_serializer(user).data)
+        return Response(Users_serializer(user).data,
+                        status=status.HTTP_201_CREATED)
     
 class Login_view(APIView):
     authentication_classes = [] 
@@ -78,7 +79,7 @@ class Login_view(APIView):
                 "phone_number": user.phone_number,
                 "role": user.role
             }
-            })
+            }, status=status.HTTP_200_OK)
 
 
 
@@ -93,7 +94,7 @@ class Logout_view(generics.GenericAPIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"Message":"User logged out"})
+        return Response({"Message":"User logged out"}, status=status.HTTP_205_RESET_CONTENT)
     
 
 

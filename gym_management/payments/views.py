@@ -17,7 +17,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payment = serializer.save()
-        return Response(PaymentSerializer(payment).data, status=201)
+        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
 
     def get_queryset(self):
         user = self.request.user
@@ -47,22 +47,19 @@ def chapa_payment(request, payment_id):
         return render(request, 'chapa.html', context)
 
     except Payment.DoesNotExist:
-        return render(request, 'error.html', {'error': 'Payment not found'})
+        return render(request, 'error.html', {'error': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 def chapa_callback(request):
-    # Handle Chapa payment callback (webhook)
-    # Verify payment status and update your database
     tx_ref = request.GET.get('tx_ref')
     status = request.GET.get('status')
     
-    # Update payment status based on Chapa response
-    # You'll need to implement proper verification here
     
-    return Response({'status': 'received'})
+    return Response({'status': 'received'},
+                    status=status.HTTP_200_OK)
 
 def payment_success(request):
-    return render(request, 'payment_success.html')
+    return render(request, 'payment_success.html', status=200)
 
 def payment_failure(request):
-    return render(request, 'payment_failure.html')
+    return render(request, 'payment_failure.html',status=400)
