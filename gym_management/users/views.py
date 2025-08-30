@@ -11,6 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from .permissions import AdminOnly, StaffOrAdmin, IsSelfOrAdmin
 
+#User Registration
 class Registeration_view(APIView):
     authentication_classes = [] 
     permission_classes = [AllowAny]
@@ -20,7 +21,7 @@ class Registeration_view(APIView):
         user = serializer.save()
         return Response(Users_serializer(user).data,
                         status=status.HTTP_201_CREATED)
-    
+#User Login/JWT Authentication
 class Login_view(APIView):
     authentication_classes = [] 
     permission_classes = [AllowAny]
@@ -68,6 +69,8 @@ class Login_view(APIView):
         # }
 
 
+
+         #JWT Token generation
         refresh = RefreshToken.for_user(user)
         access = str(refresh.access_token)
         return Response({
@@ -83,7 +86,7 @@ class Login_view(APIView):
 
 
 
-#log out blacklisting from django simple jwt
+#Log out blacklisting from django simple jwt
 
 class Logout_view(generics.GenericAPIView):
     serializer_class = LogoutSerializer
@@ -99,19 +102,19 @@ class Logout_view(generics.GenericAPIView):
 
 
     
-#admin permision
+#admin only list all users
 
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = Users_serializer
     permission_classes = [AdminOnly]
 
-#admin or member/self
+#User detail (for only self or admin)
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = Users_serializer
     permission_classes = [IsSelfOrAdmin]
-
+#Authenticated user profile only self
 class UserProfileView(generics.RetrieveAPIView):
     serializer_class = Users_serializer
     permission_classes = [IsAuthenticated]

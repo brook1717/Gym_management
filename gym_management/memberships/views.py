@@ -9,16 +9,18 @@ from rest_framework.response import Response
 from django.db import transaction
 
 
-
+#CRUD operations for Memberships
 class MembershipViewSet(viewsets.ModelViewSet):
     queryset = Membership.objects.all()
+
+    #user different serializer for create
     def get_serializer_class(self):
         if self.action == 'create':
             return MembershipCreateSerializer
         return MembershipSerializer
-
+    
+    #permision based for an action
     def get_permissions(self):
-       
         if self.action == 'destroy':
             permission_classes = [AdminOnly]
        
@@ -27,6 +29,7 @@ class MembershipViewSet(viewsets.ModelViewSet):
         else:  
             permission_classes =[IsAuthenticated, StaffOrAdmin]
         return [perm() for perm in permission_classes]
+    #custome create with explicit response
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
 
@@ -43,7 +46,8 @@ class MembershipViewSet(viewsets.ModelViewSet):
         
         membership.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
+    
+    #members ristricted to see only their own memberships
     def get_queryset(self):
         user = self.request.user
         if user.role == 'member':
@@ -51,7 +55,7 @@ class MembershipViewSet(viewsets.ModelViewSet):
         return Membership.objects.all()
 
 
-
+#Handles safe updates to memberships
 class MembershipUpdateView(generics.UpdateAPIView):
     queryset = Membership.objects.all()
     serializer_class = MembershipUpdateSerializer

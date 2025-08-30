@@ -11,7 +11,7 @@
     <p>Description: {{ description }}</p>
     
     <form method="POST" action="https://api.chapa.co/v1/hosted/pay">
-        <input type="hidden" name="public_key" value="{{ public_key }}" />
+        <input type="hidden" name="public_key" value="{{ CHAPUBK_TEST-tVCPOaCbJz1qHETIJinaXc3x9IJoAst4 }}" />
         <input type="hidden" name="tx_ref" value="{{ tx_ref }}" />
         <input type="hidden" name="amount" value="{{ amount }}" />
         <input type="hidden" name="currency" value="ETB" />

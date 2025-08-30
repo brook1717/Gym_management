@@ -1,8 +1,7 @@
 from django.db import models
-from django.utils import timezone
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
-#Custom Manager class for the DB as my model is not default django model 
+#Custom User Manager (handles user + superuser creation logic)
 class CustomUserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
@@ -14,6 +13,7 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, phone_number, password=None, **extra_fields):
+        #Ensure required flags for superuser
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
 
@@ -24,7 +24,7 @@ class CustomUserManager(BaseUserManager):
 
         return self.create_user(phone_number, password, **extra_fields)
 
-#custome member management class
+#custome User model(replaces default Django user)
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES =[
         ('admin',  'Admin'),
@@ -38,13 +38,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, blank=True, null=True)
     full_name = models.CharField(max_length=255)
     role = models.CharField(max_length=15, choices=ROLE_CHOICES, default='member')
+    
 
-
-
-
-
-
-
+    #user status flags
     is_active =models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -55,8 +51,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.full_name} ({self.role})"
-
-
+    
+    #Extra profile data for members
 class MemberProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="member_profile")
     gender = models.CharField(max_length=10, blank=True, null=True)

@@ -131,6 +131,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -178,5 +180,5 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-CHAPA_PUBLIC_KEY = os.environ.get('CHAPA_PUBLIC_KEY', 'CHAPUBK_TEST-MnIF9xqajqND13Z57rCMcri7FRW3FWWJ')
-CHAPA_SECRET_KEY = os.environ.get('CHAPA_SECRET_KEY', 'CHASECK_TEST-bhF1gWMZ5PDXJm1IUdHpqnRCv3WmogS0')
+CHAPA_PUBLIC_KEY = os.environ.get('CHAPA_PUBLIC_KEY', 'CHAPUBK_TEST-tVCPOaCbJz1qHETIJinaXc3x9IJoAst4')
+CHAPA_SECRET_KEY = os.environ.get('CHAPA_SECRET_KEY', 'CHASECK_TEST-ZpoCBqm7ZCvQ3m5lhFuXz2zvkhhPNKnb')

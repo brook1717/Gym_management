@@ -8,6 +8,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.decorators import api_view, permission_classes
 
 class SessionLoginView(APIView):
+     #Anyone can access this view (login page)
     permission_classes = [AllowAny]
     
     def post(self, request):
@@ -31,6 +32,7 @@ class SessionLoginView(APIView):
         )
 
 class SessionLogoutView(APIView):
+    #Destroy user session (log out)
     def post(self, request):
         logout(request)
         return Response({
