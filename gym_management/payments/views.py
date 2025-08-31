@@ -45,8 +45,8 @@ def chapa_payment(request, payment_id):
             'last_name': '',
             'title': f'Gym Membership Payment - {payment.membership.plan_type}',
             'description': f'Payment for {payment.membership.plan_type} membership',
-            'callback_url': f'http://{request.get_host()}/payments/chapa/callback/',
-            'return_url': f'http://{request.get_host()}/payments/success/',
+            'callback_url': f'http://{request.get_host()}/api/payments/chapa/callback/',
+            'return_url': f'http://{request.get_host()}/api/payments/success/',
             'payment_id': payment.id
         }
         return render(request, 'payments/chapa.html', context)

@@ -4,7 +4,7 @@ from .views import MembershipViewSet, MembershipUpdateView
 
 router = DefaultRouter()
 
-router.register(r'memberships', MembershipViewSet, basename='membership')
+router.register(r'', MembershipViewSet, basename='membership')
 
 
 urlpatterns = [
