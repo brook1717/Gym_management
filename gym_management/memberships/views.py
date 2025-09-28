@@ -8,6 +8,10 @@ from users.permissions import AdminOnly,  StaffOrAdmin, IsSelfOrAdmin
 from rest_framework.response import Response
 from django.db import transaction
 
+#Single import for the activity logs
+from activity_logs.utils import log_activity
+
+
 
 #CRUD operations for Memberships
 class MembershipViewSet(viewsets.ModelViewSet):
@@ -21,6 +25,7 @@ class MembershipViewSet(viewsets.ModelViewSet):
     
     #permision based for an action
     def get_permissions(self):
+        #Return instance of permissions classes
         if self.action == 'destroy':
             permission_classes = [AdminOnly]
        
@@ -36,15 +41,44 @@ class MembershipViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         membership = serializer.save()
+        #Activity logs for membership creation
+        log_activity(
+            user=request.user,
+            action='MEMBERSHIP_CREATED',
+            target_type='membership',
+            target_id=membership.id,
+            metadata={
+                'plan_type': membership.plan_type,
+                'start_date': str(membership.start_date),
+                'expiration_date': str(membership.expiration_date)
+            },
+            request=request
+        )
+
         
 
         read_serializer = MembershipSerializer(membership)
         return Response(read_serializer.data,
                         status=status.HTTP_201_CREATED)
+                        
+        
     def destroy(self, request, *args, **kwargs):
         membership = self.get_object()
-        
+        #Capture some metadata for membership deletion
+        metadata = {
+            'membership_id': membership.id,
+            'user_id': getattr(membership.user, 'id', None),
+            'plan_type': membership.plan_type,
+        }
         membership.delete()
+        log_activity(
+            user=request.user,
+            action='MEMBERSHIP_DELETED',
+            target_type='membership',
+            target_id=metadata.get('membership_id'),
+            metadata=metadata,
+            request=request
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
     
     #members ristricted to see only their own memberships
@@ -76,6 +110,19 @@ class MembershipUpdateView(generics.UpdateAPIView):
        
             self.perform_update(serializer)
             updated_membership = serializer.instance
+            #Activity logs for updationg the membership
+            log_activity(
+                user=request.user,
+                action='MEMBERSHIP_UPDATED',
+                target_type='membership',
+                target_id=membership.id,
+                metadata={
+                    'old_plan': old_plan, 'new_plan': updated_membership.plan_type,
+                    'old_expiry': str(old_expiry), 'new_expiry': str(updated_membership.expiration_date)
+                },
+                    request=request
+            )
+
             
 
             print(f"\n=== MEMBERSHIP UPDATE ACTIVITY ===")
