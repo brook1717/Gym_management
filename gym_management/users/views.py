@@ -26,18 +26,17 @@ class Login_view(APIView):
     authentication_classes = [] 
     permission_classes = [AllowAny]
     def post(self, request):
-        phone_number = request.data['phone_number']
-        email = request.data['email']
-        password = request.data['password']
+        phone_number = request.data.get('phone_number')
+        email = request.data.get('email')
+        password = request.data.get('password')
 
-        user = User.objects.filter(phone_number=phone_number).first()
-
-        #validation
+        #validation before any database queries
         if not password:
             raise ValidationError("Password is required")
         
         if not phone_number and not email:
             raise ValidationError("Phone number or email is required")
+
         if phone_number:
             user = User.objects.filter(phone_number=phone_number).first()
         else:

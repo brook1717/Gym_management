@@ -23,11 +23,13 @@ class Membership(models.Model):
         if not self.start_date:
             self.start_date = timezone.now().date()
 
-             # Auto-calculate expiration date based on plan
+        # Auto-calculate expiration date based on plan
         if self.plan_type == 'standard':
             self.expiration_date = self.start_date + timedelta(days=30)
         elif self.plan_type == 'premium':
             self.expiration_date = self.start_date + timedelta(days=90)
+        elif self.plan_type == 'lifetime':
+            self.expiration_date = self.start_date + timedelta(days=36500)
 
         super().save(*args, **kwargs)
 

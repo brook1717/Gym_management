@@ -128,7 +128,7 @@ class MembershipUpdateSerializer(serializers.ModelSerializer):
         
         
         if membership.plan_type == 'lifetime':
-            return None
+            return membership.start_date + relativedelta(years=100)
     
     # Determine renewal period
         if renew_months:
