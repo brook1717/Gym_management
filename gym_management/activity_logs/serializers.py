@@ -9,7 +9,7 @@ User = get_user_model()
 class ActivityUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email')
+        fields = ('id', 'full_name', 'phone_number', 'email')
 
 class ActivityLogSerializer(serializers.ModelSerializer):
     user = ActivityUserSerializer(read_only=True)

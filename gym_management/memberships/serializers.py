@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 class MembershipSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
-    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     class Meta:
         model = Membership
