@@ -1,6 +1,7 @@
 asgiref==3.9.1
 dj-rest-auth==7.0.1
 Django==5.2.5
+django-filter==25.1
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 pillow==11.3.0

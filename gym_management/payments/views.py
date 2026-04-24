@@ -79,9 +79,9 @@ def chapa_payment(request, payment_id):
     if user and getattr(user, 'is_authenticated', False) and user.email:
         email = user.email
     else:
-        email = email = getattr(request.user, "email", None) or \
-        getattr(payment.membership.user, "email", None) or \
-        "portfolio_user@example.com"
+        email = getattr(request.user, "email", None) or \
+            getattr(payment.membership.user, "email", None) or \
+            "portfolio_user@example.com"
 
 
     tx_ref = payment.tx_ref  # already generated in model.save()
