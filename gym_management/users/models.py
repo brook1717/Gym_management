@@ -16,6 +16,7 @@ class CustomUserManager(BaseUserManager):
         #Ensure required flags for superuser
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("role", "admin")
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -50,7 +51,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS=["full_name"]
 
     def __str__(self):
-        return f"{self.full_name} ({self.role})"
+        return self.full_name
     
     #Extra profile data for members
 class MemberProfile(models.Model):

@@ -13,7 +13,7 @@ class Admin_site_Configurations(UserAdmin):
 
 
     fieldsets =(
-        (None, {'fields':('phone_number', 'full_name', 'email')}),
+        (None, {'fields':('phone_number', 'full_name', 'email', 'role')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser') }),
         
 
@@ -23,7 +23,7 @@ class Admin_site_Configurations(UserAdmin):
         (
             None,{
                 'classes':('wide',),
-                'fields': ('phone_number', 'full_name', 'email', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser'),
+                'fields': ('phone_number', 'full_name', 'email', 'role', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser'),
             },
         ),
     )
