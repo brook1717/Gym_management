@@ -1,12 +1,10 @@
-from django.shortcuts import render
 from rest_framework import viewsets, generics, status
 from rest_framework.permissions import IsAuthenticated
-from .models import Membership
-from .serializers import MembershipSerializer, MembershipCreateSerializer, MembershipUpdateSerializer
-
-from users.permissions import AdminOnly,  StaffOrAdmin, IsSelfOrAdmin
 from rest_framework.response import Response
 from django.db import transaction
+from .models import Membership
+from .serializers import MembershipSerializer, MembershipCreateSerializer, MembershipUpdateSerializer
+from users.permissions import AdminOnly, StaffOrAdmin
 
 #Single import for the activity logs
 from activity_logs.utils import log_activity

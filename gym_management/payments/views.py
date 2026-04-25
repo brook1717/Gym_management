@@ -3,7 +3,7 @@
 import json
 import logging
 import requests as http_requests
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -16,7 +16,6 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Payment
 from .serializers import PaymentSerializer, PaymentCreateSerializer
 from activity_logs.utils import log_activity
-from users.permissions import StaffOrAdmin, AdminOnly
 from django.conf import settings
 
 logger = logging.getLogger(__name__)

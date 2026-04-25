@@ -1,14 +1,11 @@
-from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .models import User
-from .permissions import AdminOnly
-import jwt, datetime
-from .serializers import Users_serializer, RegisterSerializer, LogoutSerializer
-from rest_framework import generics, permissions, status
+from rest_framework import generics, status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from .models import User
+from .serializers import Users_serializer, RegisterSerializer, LogoutSerializer
 from .permissions import AdminOnly, StaffOrAdmin, IsSelfOrAdmin
 
 #User Registration
