@@ -17,6 +17,7 @@ class Membership(models.Model):
     plan_type= models.CharField(max_length=30, choices=PLAN_CHOICES)
     start_date = models.DateField(default=timezone.now)
     expiration_date=models.DateField()
+    is_expired = models.BooleanField(default=False)
 
 
     def save(self, *args, **kwargs):

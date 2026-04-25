@@ -10,9 +10,9 @@ User = get_user_model()
 class ActivityLogTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.admin = User.objects.create_user(username='admin', email='a@example.com', password='pass', role='admin')
-        self.staff = User.objects.create_user(username='staff', email='s@example.com', password='pass', role='staff')
-        self.member = User.objects.create_user(username='member', email='m@example.com', password='pass', role='member')
+        self.admin = User.objects.create_user(phone_number='0900000001', full_name='Admin User', email='a@example.com', password='pass', role='admin')
+        self.staff = User.objects.create_user(phone_number='0900000002', full_name='Staff User', email='s@example.com', password='pass', role='staff')
+        self.member = User.objects.create_user(phone_number='0900000003', full_name='Member User', email='m@example.com', password='pass', role='member')
 
     def test_admin_can_list_logs(self):
         # create a log
