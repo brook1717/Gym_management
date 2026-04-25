@@ -81,6 +81,26 @@ class MembershipViewSet(viewsets.ModelViewSet):
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    def perform_update(self, serializer):
+        membership = self.get_object()
+        old_plan = membership.plan_type
+        old_expiry = str(membership.expiration_date)
+
+        updated = serializer.save()
+
+        log_activity(
+            user=self.request.user,
+            action='MEMBERSHIP_UPDATED',
+            target_type='membership',
+            target_id=updated.id,
+            metadata={
+                'old_plan': old_plan, 'new_plan': updated.plan_type,
+                'old_expiry': old_expiry, 'new_expiry': str(updated.expiration_date),
+                'member_id': updated.user.id,
+            },
+            request=self.request
+        )
+
     #members ristricted to see only their own memberships
     def get_queryset(self):
         user = self.request.user
@@ -123,15 +143,5 @@ class MembershipUpdateView(generics.UpdateAPIView):
                     request=request
             )
 
-            
-
-            print(f"\n=== MEMBERSHIP UPDATE ACTIVITY ===")
-            print(f"Action: MEMBERSHIP_UPDATED")
-            print(f"Performed by: {request.user} (ID: {request.user.id})")
-            print(f"Target user: {updated_membership.user} (ID: {updated_membership.user.id})")
-            print(f"Old plan: {old_plan}, New plan: {updated_membership.plan_type}")
-            print(f"Old expiry: {old_expiry}, New expiry: {updated_membership.expiration_date}")
-            print("==================================\n")
-        
         return Response(serializer.data,
                         status=status.HTTP_200_OK)

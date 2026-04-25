@@ -81,6 +81,43 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
         return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
 
+    def perform_update(self, serializer):
+        payment = self.get_object()
+        old_status = payment.status
+        old_amount = str(payment.amount)
+
+        updated = serializer.save()
+
+        log_activity(
+            user=self.request.user,
+            action='PAYMENT_UPDATED',
+            target_type='payment',
+            target_id=updated.id,
+            metadata={
+                'membership_id': updated.membership.id,
+                'old_status': old_status, 'new_status': updated.status,
+                'old_amount': old_amount, 'new_amount': str(updated.amount),
+            },
+            request=self.request
+        )
+
+    def perform_destroy(self, instance):
+        metadata = {
+            'payment_id': instance.id,
+            'membership_id': instance.membership.id,
+            'amount': str(instance.amount),
+            'status': instance.status,
+        }
+        instance.delete()
+        log_activity(
+            user=self.request.user,
+            action='PAYMENT_DELETED',
+            target_type='payment',
+            target_id=metadata['payment_id'],
+            metadata=metadata,
+            request=self.request
+        )
+
     def get_queryset(self):
         """Members see only their own payments, staff/admin see all."""
         user = self.request.user
