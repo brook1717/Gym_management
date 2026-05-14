@@ -10,12 +10,12 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.conf import settings
 
-from .models import User, UserSession
+from .models import User, UserSession, MemberProfile
 from .serializers import (
-    Users_serializer, RegisterSerializer,
+    Users_serializer, RegisterSerializer, MemberProfileSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
 )
-from .permissions import AdminOnly, IsSelfOrAdmin
+from .permissions import AdminOnly, IsAdmin, IsTrainer, IsOwnerOrReadOnly, IsSelfOrAdmin
 from .services import (
     blacklist_refresh_jti,
     is_refresh_jti_blacklisted,
@@ -383,4 +383,59 @@ class UserProfileView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+# ---------------------------------------------------------------------------
+# Demo: Member editing own profile (IsOwnerOrReadOnly)
+# ---------------------------------------------------------------------------
+
+class MemberProfileView(generics.RetrieveUpdateAPIView):
+    """
+    GET  — any authenticated user can read their own profile.
+    PUT/PATCH — only the owning member can edit (IsOwnerOrReadOnly).
+    """
+    serializer_class = MemberProfileSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+
+    def get_object(self):
+        profile, _ = MemberProfile.objects.get_or_create(user=self.request.user)
+        self.check_object_permissions(self.request, profile)
+        return profile
+
+
+# ---------------------------------------------------------------------------
+# Demo: Trainer viewing assigned members (IsTrainer | IsAdmin)
+# ---------------------------------------------------------------------------
+
+class TrainerMemberListView(generics.ListAPIView):
+    """
+    Trainers (and admins) can list member-role users.
+    In a full implementation this would filter by trainer assignment;
+    here we return all members as a demo of role gating.
+    """
+    serializer_class = Users_serializer
+    permission_classes = [IsTrainer | IsAdmin]
+
+    def get_queryset(self):
+        return User.objects.filter(role='member')
+
+
+# ---------------------------------------------------------------------------
+# Demo: Admin-only system settings (IsAdmin)
+# ---------------------------------------------------------------------------
+
+class SystemSettingsView(APIView):
+    """Dummy admin-only endpoint demonstrating full-access gating."""
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        return Response({
+            "maintenance_mode": False,
+            "allow_registration": True,
+            "default_membership_days": 30,
+        })
+
+    def put(self, request):
+        # In production this would persist to a SystemConfig model/cache.
+        return Response({"detail": "System settings updated."}, status=status.HTTP_200_OK)
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from users.models import User
+from users.models import User, MemberProfile
 
 
 class Users_serializer(serializers.ModelSerializer):
@@ -31,6 +31,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
         )
         return user
+
+
+class MemberProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MemberProfile
+        fields = ['id', 'gender', 'address', 'emergency_contact', 'profile_picture']
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):

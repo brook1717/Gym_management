@@ -4,6 +4,7 @@ from .views import (
     SendVerificationEmailView, VerifyEmailView,
     PasswordResetView, PasswordResetConfirmView,
     UserListView, UserDetailView, UserProfileView,
+    MemberProfileView, TrainerMemberListView, SystemSettingsView,
 )
 from .session_authentication import SessionLoginView, SessionLogoutView, get_csrf_token
 
@@ -31,4 +32,9 @@ urlpatterns = [
     path('users/', UserListView.as_view(), name='user-list'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
     path('profile/', UserProfileView.as_view(), name='user-profile'),
+
+    # Authorization demos
+    path('me/member-profile/', MemberProfileView.as_view(), name='member-profile'),
+    path('trainer/members/', TrainerMemberListView.as_view(), name='trainer-member-list'),
+    path('system/settings/', SystemSettingsView.as_view(), name='system-settings'),
 ]
