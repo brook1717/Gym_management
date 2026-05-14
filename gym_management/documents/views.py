@@ -4,7 +4,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .models import Document
 from .serializers import DocumentSerializer
-from users.permissions import StaffOrAdmin
+from users.permissions import ManagerOrAdmin
 from activity_logs.utils import log_activity
 
 
@@ -14,7 +14,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [IsAuthenticated(), StaffOrAdmin()]
+            return [IsAuthenticated(), ManagerOrAdmin()]
         return [IsAuthenticated()]
 
     def get_queryset(self):

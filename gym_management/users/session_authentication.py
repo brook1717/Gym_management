@@ -10,12 +10,12 @@ from rest_framework.decorators import api_view, permission_classes
 class SessionLoginView(APIView):
      #Anyone can access this view (login page)
     permission_classes = [AllowAny]
-    
+
     def post(self, request):
-        phone_number = request.data.get('phone_number')
+        email = request.data.get('email')
         password = request.data.get('password')
-        
-        user = authenticate(request, phone_number=phone_number, password=password)
+
+        user = authenticate(request, email=email, password=password)
         if user is not None:
             login(request, user)
             return Response({
@@ -23,7 +23,7 @@ class SessionLoginView(APIView):
                 'user': {
                     'id': user.id,
                     'email': user.email,
-                    'role': user.role 
+                    'role': user.role
                 }
             })
         return Response(

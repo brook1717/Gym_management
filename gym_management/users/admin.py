@@ -1,31 +1,35 @@
 from django.contrib import admin
-from .models import User
+from .models import User, MemberProfile
 from django.contrib.auth.admin import UserAdmin
-from django.forms import TextInput, Textarea
 
 
 #simplified the Admin site
 class Admin_site_Configurations(UserAdmin):
-    ordering=('-full_name',)
-    list_display = ('phone_number', 'full_name', 'email', 'role', 'is_active', 'is_staff')
-    search_fields = ['phone_number', 'full_name', 'email']
+    ordering = ('-full_name',)
+    list_display = ('email', 'full_name', 'role', 'is_verified', 'is_active', 'is_staff')
+    search_fields = ['email', 'full_name', 'phone_number']
     list_editable = ('role', 'is_active')
+    list_filter = ('role', 'is_verified', 'is_active', 'is_staff')
 
-
-    fieldsets =(
-        (None, {'fields':('phone_number', 'full_name', 'email', 'role')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser') }),
-        
-
+    fieldsets = (
+        (None, {'fields': ('email', 'full_name', 'phone_number', 'role')}),
+        ('Status', {'fields': ('is_verified', 'mfa_enabled', 'oauth_provider', 'profile_image')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
     )
 
-    add_fieldsets=(
+    add_fieldsets = (
         (
-            None,{
-                'classes':('wide',),
-                'fields': ('phone_number', 'full_name', 'email', 'role', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser'),
+            None, {
+                'classes': ('wide',),
+                'fields': (
+                    'email', 'full_name', 'phone_number', 'role',
+                    'password1', 'password2',
+                    'is_active', 'is_staff', 'is_superuser',
+                ),
             },
         ),
     )
 
+
 admin.site.register(User, Admin_site_Configurations)
+admin.site.register(MemberProfile)

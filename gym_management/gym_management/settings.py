@@ -146,19 +146,33 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 
-#For JWT
+# ---------------------------------------------------------------------------
+# JWT / Cookie configuration
+# ---------------------------------------------------------------------------
 
-REST_AUTH ={
-'USE_JWT': True,
-'JWT_AUTH_COOKIE' : 'gym_management_cookie',
-'JWT_AUTH_REFRESH_COOKIE': 'gym_management_refresher_cookie'
+# Cookie names used by users.authentication.CookieJWTAuthentication
+JWT_AUTH_COOKIE = "gym_access_token"
+JWT_AUTH_REFRESH_COOKIE = "gym_refresh_token"
+
+# In production set this to True (requires HTTPS)
+JWT_COOKIE_SECURE = not DEBUG
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
 }
 
+# ---------------------------------------------------------------------------
+# Django REST Framework
+# ---------------------------------------------------------------------------
+
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES':(
-         "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'users.authentication.CookieJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
-       
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -174,24 +188,14 @@ SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
 }
 
-
-# to adjust times of token
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=120),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
-    "UPDATE_LAST_LOGIN": True,
-}
 #the user model
 AUTH_USER_MODEL = "users.User"
+
 # to allow js to read the CSRF cookie
 CSRF_COOKIE_HTTPONLY = False
 
-
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',  # For sessions
-    # (Your JWT backend if you have custom one)
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 

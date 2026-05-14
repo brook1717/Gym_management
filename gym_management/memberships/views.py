@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.db import transaction
 from .models import Membership
 from .serializers import MembershipSerializer, MembershipCreateSerializer, MembershipUpdateSerializer
-from users.permissions import AdminOnly, StaffOrAdmin
+from users.permissions import AdminOnly, ManagerOrAdmin
 
 #Single import for the activity logs
 from activity_logs.utils import log_activity
@@ -28,9 +28,9 @@ class MembershipViewSet(viewsets.ModelViewSet):
             permission_classes = [AdminOnly]
        
         elif self.action=='create':
-            permission_classes = [IsAuthenticated, StaffOrAdmin]
+            permission_classes = [IsAuthenticated, ManagerOrAdmin]
         else:  
-            permission_classes =[IsAuthenticated, StaffOrAdmin]
+            permission_classes =[IsAuthenticated, ManagerOrAdmin]
         return [perm() for perm in permission_classes]
     #custome create with explicit response
     def create(self, request, *args, **kwargs):
@@ -111,7 +111,7 @@ class MembershipViewSet(viewsets.ModelViewSet):
 class MembershipUpdateView(generics.UpdateAPIView):
     queryset = Membership.objects.all()
     serializer_class = MembershipUpdateSerializer
-    permission_classes = [StaffOrAdmin]
+    permission_classes = [ManagerOrAdmin]
     
     def update(self, request, *args, **kwargs):
         membership = self.get_object()
