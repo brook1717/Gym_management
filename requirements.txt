@@ -2,13 +2,16 @@ asgiref==3.9.1
 dj-rest-auth==7.0.1
 Django==5.2.5
 django-filter==25.1
+django-redis==6.0.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.28.0
 pillow==11.3.0
 PyJWT==2.10.1
 python-dateutil==2.9.0.post0
+redis==7.4.0
 requests==2.32.3
 six==1.17.0
 sqlparse==0.5.3
 tzdata==2025.2
+ua-parser==1.0.2

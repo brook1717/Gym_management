@@ -97,6 +97,41 @@ DATABASES = {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Redis / Cache configuration
+# ---------------------------------------------------------------------------
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            # Graceful fallback: ignore connection errors in dev
+            "IGNORE_EXCEPTIONS": DEBUG,
+        },
+    }
+}
+
+# Fallback to in-memory cache if Redis is unavailable during development
+if DEBUG:
+    try:
+        import redis as _redis_lib
+        _r = _redis_lib.from_url(REDIS_URL, socket_connect_timeout=1)
+        _r.ping()
+    except Exception:
+        CACHES = {
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "gym-token-blacklist",
+            }
+        }
+
+# Redis key prefix for blacklisted refresh tokens
+REDIS_TOKEN_BLACKLIST_PREFIX = "bl:refresh:"
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

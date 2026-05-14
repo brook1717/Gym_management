@@ -1,4 +1,6 @@
+import uuid
 from django.db import models
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
 
@@ -74,3 +76,73 @@ class MemberProfile(models.Model):
 
     def __str__(self):
         return f"Here is the Profile of {self.user.full_name}"
+
+
+# ---------------------------------------------------------------------------
+# Session Tracking
+# ---------------------------------------------------------------------------
+
+class UserSession(models.Model):
+    """Tracks active user sessions with device/browser/IP metadata."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sessions"
+    )
+    # Refresh token family — ties a chain of rotated tokens to this session
+    token_family = models.UUIDField(default=uuid.uuid4, unique=True)
+    device = models.CharField(max_length=255, blank=True, default='')
+    browser = models.CharField(max_length=255, blank=True, default='')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-last_activity']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['token_family']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.device or 'Unknown'} ({self.ip_address})"
+
+
+# ---------------------------------------------------------------------------
+# Security Audit Log
+# ---------------------------------------------------------------------------
+
+class AuditLog(models.Model):
+    """Immutable security event log."""
+    EVENT_CHOICES = [
+        ('LOGIN', 'Login'),
+        ('LOGIN_FAILED', 'Failed Login'),
+        ('LOGOUT', 'Logout'),
+        ('PASSWORD_RESET', 'Password Reset'),
+        ('MFA_ENABLED', 'MFA Enabled'),
+        ('MFA_DISABLED', 'MFA Disabled'),
+        ('MFA_CHALLENGE', 'MFA Challenge'),
+        ('TOKEN_REVOKED', 'Token Revoked'),
+        ('SESSION_REVOKED', 'Session Revoked'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="audit_logs"
+    )
+    event = models.CharField(max_length=20, choices=EVENT_CHOICES)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'event']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.event} — {self.user_id} @ {self.created_at:%Y-%m-%d %H:%M}"

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, MemberProfile
+from .models import User, MemberProfile, UserSession, AuditLog
 from django.contrib.auth.admin import UserAdmin
 
 
@@ -33,3 +33,19 @@ class Admin_site_Configurations(UserAdmin):
 
 admin.site.register(User, Admin_site_Configurations)
 admin.site.register(MemberProfile)
+
+
+@admin.register(UserSession)
+class UserSessionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'device', 'browser', 'ip_address', 'is_active', 'last_activity')
+    list_filter = ('is_active',)
+    search_fields = ('user__email', 'ip_address')
+    readonly_fields = ('id', 'token_family', 'created_at', 'last_activity')
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('event', 'user', 'ip_address', 'created_at')
+    list_filter = ('event',)
+    search_fields = ('user__email', 'ip_address')
+    readonly_fields = ('id', 'user', 'event', 'ip_address', 'user_agent', 'metadata', 'created_at')
