@@ -234,5 +234,22 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Email configuration (console backend for dev; swap for SMTP in production)
+# ---------------------------------------------------------------------------
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@gym.local")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+
+# Signed-token lifetimes (seconds)
+EMAIL_VERIFY_TOKEN_MAX_AGE = 60 * 60 * 24      # 24 hours
+PASSWORD_RESET_TOKEN_MAX_AGE = 60 * 30          # 30 minutes
+
+# Signing salts (change per environment via env vars if desired)
+EMAIL_VERIFY_SALT = "email-verify"
+PASSWORD_RESET_SALT = "password-reset"
+
+
 CHAPA_PUBLIC_KEY = os.environ.get('CHAPA_PUBLIC_KEY', 'CHAPUBK_TEST-tVCPOaCbJz1qHETIJinaXc3x9IJoAst4')
 CHAPA_SECRET_KEY = os.environ.get('CHAPA_SECRET_KEY', 'CHASECK_TEST-ZpoCBqm7ZCvQ3m5lhFuXz2zvkhhPNKnb')

@@ -1,11 +1,14 @@
 """
-Service layer for token blacklisting via Redis and session/audit helpers.
+Service layer for token blacklisting via Redis, session/audit helpers,
+and email verification / password reset flows.
 """
 import uuid
 from datetime import timedelta
 
 from django.conf import settings
+from django.core import signing
 from django.core.cache import cache
+from django.core.mail import send_mail
 from django.utils import timezone
 
 from .models import UserSession, AuditLog
@@ -101,3 +104,106 @@ def log_audit_event(event: str, request, user=None, metadata: dict | None = None
         user_agent=request.META.get("HTTP_USER_AGENT", ""),
         metadata=metadata or {},
     )
+
+
+# ---------------------------------------------------------------------------
+# Signed-token helpers (email verification & password reset)
+# ---------------------------------------------------------------------------
+
+def generate_email_verify_token(user) -> str:
+    """Create a short-lived signed token for email verification."""
+    return signing.dumps(
+        {"uid": str(user.pk), "purpose": "email-verify"},
+        salt=settings.EMAIL_VERIFY_SALT,
+    )
+
+
+def verify_email_token(token: str) -> dict | None:
+    """
+    Validate an email-verification token.
+    Returns the payload dict or None if invalid/expired.
+    """
+    try:
+        return signing.loads(
+            token,
+            salt=settings.EMAIL_VERIFY_SALT,
+            max_age=settings.EMAIL_VERIFY_TOKEN_MAX_AGE,
+        )
+    except (signing.SignatureExpired, signing.BadSignature):
+        return None
+
+
+def generate_password_reset_token(user) -> str:
+    """
+    Create a single-use signed token for password reset.
+    Embeds the user's current password hash fragment so the token is
+    automatically invalidated once the password changes.
+    """
+    return signing.dumps(
+        {
+            "uid": str(user.pk),
+            "purpose": "password-reset",
+            "ph": user.password[-8:],   # last 8 chars of hashed password
+        },
+        salt=settings.PASSWORD_RESET_SALT,
+    )
+
+
+def verify_password_reset_token(token: str) -> dict | None:
+    """
+    Validate a password-reset token.
+    Returns the payload dict or None if invalid/expired.
+    The caller must still verify `payload["ph"]` matches the user's
+    current password hash to enforce single-use semantics.
+    """
+    try:
+        return signing.loads(
+            token,
+            salt=settings.PASSWORD_RESET_SALT,
+            max_age=settings.PASSWORD_RESET_TOKEN_MAX_AGE,
+        )
+    except (signing.SignatureExpired, signing.BadSignature):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Email senders (swap for Celery tasks later)
+# ---------------------------------------------------------------------------
+
+def send_verification_email(user):
+    """Send an email-verification link to the user."""
+    token = generate_email_verify_token(user)
+    verify_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={token}"
+    send_mail(
+        subject="Verify your email — Gym Management",
+        message=(
+            f"Hi {user.full_name},\n\n"
+            f"Please verify your email by clicking the link below:\n\n"
+            f"{verify_url}\n\n"
+            f"This link expires in 24 hours.\n"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+    )
+
+
+def send_password_reset_email(user):
+    """Send a password-reset link to the user."""
+    token = generate_password_reset_token(user)
+    reset_url = f"{settings.FRONTEND_URL}/auth/password-reset-confirm?token={token}"
+    send_mail(
+        subject="Reset your password — Gym Management",
+        message=(
+            f"Hi {user.full_name},\n\n"
+            f"Click the link below to reset your password:\n\n"
+            f"{reset_url}\n\n"
+            f"This link expires in 30 minutes and can only be used once.\n"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+    )
+
+
+def revoke_all_sessions(user):
+    """Deactivate every active session for a user."""
+    UserSession.objects.filter(user=user, is_active=True).update(is_active=False)

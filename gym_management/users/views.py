@@ -11,14 +11,22 @@ from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.conf import settings
 
 from .models import User, UserSession
-from .serializers import Users_serializer, RegisterSerializer
+from .serializers import (
+    Users_serializer, RegisterSerializer,
+    PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
+)
 from .permissions import AdminOnly, IsSelfOrAdmin
 from .services import (
     blacklist_refresh_jti,
     is_refresh_jti_blacklisted,
     create_user_session,
     revoke_session,
+    revoke_all_sessions,
     log_audit_event,
+    send_verification_email,
+    verify_email_token,
+    send_password_reset_email,
+    verify_password_reset_token,
 )
 
 
@@ -68,8 +76,15 @@ class Registeration_view(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(Users_serializer(user).data,
-                        status=status.HTTP_201_CREATED)
+        # Send verification email on registration
+        send_verification_email(user)
+        return Response(
+            {
+                "detail": "Registration successful. Please check your email to verify your account.",
+                "user": Users_serializer(user).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +232,132 @@ class Logout_view(APIView):
         response = Response({"detail": "Logged out."}, status=status.HTTP_205_RESET_CONTENT)
         _clear_auth_cookies(response)
         return response
+
+
+# ---------------------------------------------------------------------------
+# Email Verification
+# ---------------------------------------------------------------------------
+
+class SendVerificationEmailView(APIView):
+    """Re-send a verification email to the authenticated user."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if user.is_verified:
+            return Response({"detail": "Email already verified."}, status=status.HTTP_200_OK)
+        send_verification_email(user)
+        return Response(
+            {"detail": "Verification email sent."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class VerifyEmailView(APIView):
+    """Verify an email address using a signed token."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+        if not token:
+            raise ValidationError("Token is required.")
+
+        payload = verify_email_token(token)
+        if payload is None:
+            return Response(
+                {"detail": "Invalid or expired verification link."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(pk=payload["uid"])
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.is_verified:
+            return Response({"detail": "Email already verified."}, status=status.HTTP_200_OK)
+
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+        return Response({"detail": "Email verified successfully."}, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Password Reset
+# ---------------------------------------------------------------------------
+
+class PasswordResetView(APIView):
+    """Request a password-reset email. Always returns 200 to avoid email enumeration."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
+            send_password_reset_email(user)
+
+        # Always return 200 to prevent email enumeration
+        return Response(
+            {"detail": "If an account with that email exists, a reset link has been sent."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """Validate the reset token and set a new password."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+
+        payload = verify_password_reset_token(token)
+        if payload is None:
+            return Response(
+                {"detail": "Invalid or expired reset link."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(pk=payload["uid"])
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Single-use check: password hash fragment must still match
+        if user.password[-8:] != payload.get("ph"):
+            return Response(
+                {"detail": "This reset link has already been used."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+
+        # Invalidate all existing sessions for this user
+        revoke_all_sessions(user)
+
+        # Audit: password reset
+        log_audit_event('PASSWORD_RESET', request, user=user)
+
+        return Response(
+            {"detail": "Password reset successful. All sessions have been revoked."},
+            status=status.HTTP_200_OK,
+        )
 
 
 # ---------------------------------------------------------------------------
