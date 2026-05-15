@@ -146,3 +146,30 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.event} — {self.user_id} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
+# ---------------------------------------------------------------------------
+# MFA Device (TOTP)
+# ---------------------------------------------------------------------------
+
+class MFADevice(models.Model):
+    """Stores a TOTP authenticator device for a user."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mfa_device"
+    )
+    # TOTP secret encrypted with Fernet at rest
+    encrypted_secret = models.TextField()
+    # Hashed single-use backup codes stored as JSON list
+    backup_codes = models.JSONField(default=list, blank=True)
+    # True once the user has confirmed setup with a valid TOTP code
+    is_confirmed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "MFA Device"
+        verbose_name_plural = "MFA Devices"
+
+    def __str__(self):
+        status = "confirmed" if self.is_confirmed else "pending"
+        return f"TOTP ({status}) — {self.user.email}"

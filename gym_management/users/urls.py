@@ -3,6 +3,9 @@ from .views import (
     Registeration_view, Login_view, Logout_view, TokenRefreshView,
     SendVerificationEmailView, VerifyEmailView,
     PasswordResetView, PasswordResetConfirmView,
+    OAuthCallbackView,
+    MFASetupView, MFASetupConfirmView, MFAVerifyView,
+    MFADisableView, MFABackupCodesRegenerateView,
     UserListView, UserDetailView, UserProfileView,
     MemberProfileView, TrainerMemberListView, SystemSettingsView,
 )
@@ -22,6 +25,16 @@ urlpatterns = [
     # Password Reset
     path('password-reset/', PasswordResetView.as_view(), name='password-reset'),
     path('password-reset-confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+
+    # OAuth 2.0
+    path('oauth/callback/', OAuthCallbackView.as_view(), name='oauth-callback'),
+
+    # MFA (TOTP)
+    path('mfa/setup/', MFASetupView.as_view(), name='mfa-setup'),
+    path('mfa/setup/confirm/', MFASetupConfirmView.as_view(), name='mfa-setup-confirm'),
+    path('mfa/verify/', MFAVerifyView.as_view(), name='mfa-verify'),
+    path('mfa/disable/', MFADisableView.as_view(), name='mfa-disable'),
+    path('mfa/backup-codes/regenerate/', MFABackupCodesRegenerateView.as_view(), name='mfa-backup-regen'),
 
     # Session Authentication Endpoints (for demo/testing only)
     path('session/login/', SessionLoginView.as_view(), name='session-login'),

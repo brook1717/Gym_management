@@ -251,5 +251,51 @@ EMAIL_VERIFY_SALT = "email-verify"
 PASSWORD_RESET_SALT = "password-reset"
 
 
+# ---------------------------------------------------------------------------
+# OAuth 2.0 / OpenID Connect providers
+# ---------------------------------------------------------------------------
+
+OAUTH_PROVIDERS = {
+    "google": {
+        "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+        "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+        "token_url": "https://oauth2.googleapis.com/token",
+        "userinfo_url": "https://www.googleapis.com/oauth2/v3/userinfo",
+        "redirect_uri": os.environ.get(
+            "GOOGLE_REDIRECT_URI",
+            f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/auth/callback/google",
+        ),
+    },
+    "github": {
+        "client_id": os.environ.get("GITHUB_CLIENT_ID", ""),
+        "client_secret": os.environ.get("GITHUB_CLIENT_SECRET", ""),
+        "token_url": "https://github.com/login/oauth/access_token",
+        "userinfo_url": "https://api.github.com/user",
+        "emails_url": "https://api.github.com/user/emails",
+        "redirect_uri": os.environ.get(
+            "GITHUB_REDIRECT_URI",
+            f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/auth/callback/github",
+        ),
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# MFA (Multi-Factor Authentication) — TOTP
+# ---------------------------------------------------------------------------
+
+# Fernet symmetric key for encrypting TOTP secrets at rest.
+# Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+MFA_ENCRYPTION_KEY = os.environ.get(
+    "MFA_ENCRYPTION_KEY",
+    "ChZrx-wKujPV283ihCsYnYwRUWlvxSBFKX_qFobGUz4=",  # dev only — override in production
+)
+
+MFA_ISSUER_NAME = "Gym Management"
+MFA_TOKEN_SALT = "mfa-challenge"
+MFA_TOKEN_MAX_AGE = 60 * 5          # 5 minutes to complete MFA challenge
+MFA_BACKUP_CODE_COUNT = 10
+
+
 CHAPA_PUBLIC_KEY = os.environ.get('CHAPA_PUBLIC_KEY', 'CHAPUBK_TEST-tVCPOaCbJz1qHETIJinaXc3x9IJoAst4')
 CHAPA_SECRET_KEY = os.environ.get('CHAPA_SECRET_KEY', 'CHASECK_TEST-ZpoCBqm7ZCvQ3m5lhFuXz2zvkhhPNKnb')

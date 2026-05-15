@@ -50,3 +50,25 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     def validate_new_password(self, value):
         validate_password(value)
         return value
+
+
+# ---------------------------------------------------------------------------
+# OAuth
+# ---------------------------------------------------------------------------
+
+class OAuthCallbackSerializer(serializers.Serializer):
+    provider = serializers.ChoiceField(choices=["google", "github"])
+    code = serializers.CharField()
+
+
+# ---------------------------------------------------------------------------
+# MFA
+# ---------------------------------------------------------------------------
+
+class MFASetupConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField(min_length=6, max_length=6)
+
+
+class MFAVerifySerializer(serializers.Serializer):
+    mfa_token = serializers.CharField()
+    code = serializers.CharField(max_length=10)

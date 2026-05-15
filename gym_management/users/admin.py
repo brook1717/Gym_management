@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, MemberProfile, UserSession, AuditLog
+from .models import User, MemberProfile, UserSession, AuditLog, MFADevice
 from django.contrib.auth.admin import UserAdmin
 
 
@@ -49,3 +49,11 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_filter = ('event',)
     search_fields = ('user__email', 'ip_address')
     readonly_fields = ('id', 'user', 'event', 'ip_address', 'user_agent', 'metadata', 'created_at')
+
+
+@admin.register(MFADevice)
+class MFADeviceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'is_confirmed', 'created_at')
+    list_filter = ('is_confirmed',)
+    search_fields = ('user__email',)
+    readonly_fields = ('id', 'encrypted_secret', 'backup_codes', 'created_at')

@@ -10,10 +10,11 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.conf import settings
 
-from .models import User, UserSession, MemberProfile
+from .models import User, UserSession, MemberProfile, MFADevice
 from .serializers import (
     Users_serializer, RegisterSerializer, MemberProfileSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
+    OAuthCallbackSerializer, MFASetupConfirmSerializer, MFAVerifySerializer,
 )
 from .permissions import AdminOnly, IsAdmin, IsTrainer, IsOwnerOrReadOnly, IsSelfOrAdmin
 from .services import (
@@ -27,6 +28,16 @@ from .services import (
     verify_email_token,
     send_password_reset_email,
     verify_password_reset_token,
+    exchange_oauth_code,
+    generate_mfa_token,
+    verify_mfa_token,
+    generate_totp_secret,
+    encrypt_totp_secret,
+    decrypt_totp_secret,
+    get_totp_provisioning_uri,
+    verify_totp_code,
+    generate_backup_codes,
+    verify_backup_code,
 )
 
 
@@ -88,7 +99,39 @@ class Registeration_view(APIView):
 
 
 # ---------------------------------------------------------------------------
-# Login — creates UserSession + AuditLog, sets cookies
+# Shared helper — complete login (issue JWT cookies + session + audit)
+# ---------------------------------------------------------------------------
+
+def _complete_login(user, request):
+    """
+    Issue JWT cookies, create a UserSession, write LOGIN audit.
+    Returns a fully formed Response.
+    """
+    token_family = uuid.uuid4()
+    refresh = RefreshToken.for_user(user)
+    refresh["token_family"] = str(token_family)
+
+    session = create_user_session(user, request, token_family=token_family)
+    log_audit_event('LOGIN', request, user=user, metadata={
+        "session_id": str(session.id),
+    })
+
+    response = Response({
+        "detail": "Login successful.",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+        }
+    }, status=status.HTTP_200_OK)
+
+    _set_auth_cookies(response, refresh.access_token, refresh)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Login — MFA-aware: returns mfa_token if MFA enabled, else full login
 # ---------------------------------------------------------------------------
 
 class Login_view(APIView):
@@ -117,33 +160,17 @@ class Login_view(APIView):
             log_audit_event('LOGIN_FAILED', request, user=user, metadata={"reason": "bad_password"})
             raise AuthenticationFailed("Incorrect password.")
 
-        # Generate a token family for this session
-        token_family = uuid.uuid4()
+        # If MFA is enabled AND a confirmed device exists → defer to MFA challenge
+        if user.mfa_enabled and MFADevice.objects.filter(user=user, is_confirmed=True).exists():
+            mfa_token = generate_mfa_token(user)
+            log_audit_event('MFA_CHALLENGE', request, user=user)
+            return Response({
+                "detail": "MFA required.",
+                "mfa_required": True,
+                "mfa_token": mfa_token,
+            }, status=status.HTTP_200_OK)
 
-        # Issue JWT pair — embed token_family in the refresh token
-        refresh = RefreshToken.for_user(user)
-        refresh["token_family"] = str(token_family)
-
-        # Create a tracked session
-        session = create_user_session(user, request, token_family=token_family)
-
-        # Audit: successful login
-        log_audit_event('LOGIN', request, user=user, metadata={
-            "session_id": str(session.id),
-        })
-
-        response = Response({
-            "detail": "Login successful.",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.full_name,
-                "role": user.role,
-            }
-        }, status=status.HTTP_200_OK)
-
-        _set_auth_cookies(response, refresh.access_token, refresh)
-        return response
+        return _complete_login(user, request)
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +385,237 @@ class PasswordResetConfirmView(APIView):
             {"detail": "Password reset successful. All sessions have been revoked."},
             status=status.HTTP_200_OK,
         )
+
+
+# ---------------------------------------------------------------------------
+# OAuth 2.0 callback
+# ---------------------------------------------------------------------------
+
+class OAuthCallbackView(APIView):
+    """
+    Accept {provider, code} from the frontend, exchange with provider,
+    create or update local user, issue JWT cookies.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = OAuthCallbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        provider = serializer.validated_data["provider"]
+        code = serializer.validated_data["code"]
+
+        try:
+            user_info = exchange_oauth_code(provider, code)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = user_info.get("email")
+        if not email:
+            return Response(
+                {"detail": "Could not retrieve email from provider."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Create or update local user
+        user, created = User.objects.get_or_create(
+            email__iexact=email,
+            defaults={
+                "email": email,
+                "full_name": user_info.get("full_name", ""),
+                "oauth_provider": provider,
+                "is_verified": True,
+            },
+        )
+        if not created:
+            # Update provider info on returning user
+            if not user.oauth_provider:
+                user.oauth_provider = provider
+            user.is_verified = True
+            user.save(update_fields=["oauth_provider", "is_verified"])
+
+        # If user has MFA → require MFA even for OAuth login
+        if user.mfa_enabled and MFADevice.objects.filter(user=user, is_confirmed=True).exists():
+            mfa_token = generate_mfa_token(user)
+            log_audit_event('MFA_CHALLENGE', request, user=user, metadata={"via": "oauth"})
+            return Response({
+                "detail": "MFA required.",
+                "mfa_required": True,
+                "mfa_token": mfa_token,
+            }, status=status.HTTP_200_OK)
+
+        return _complete_login(user, request)
+
+
+# ---------------------------------------------------------------------------
+# MFA — Setup
+# ---------------------------------------------------------------------------
+
+class MFASetupView(APIView):
+    """
+    POST: Generate a TOTP secret and return the provisioning URI + backup codes.
+    The device is NOT confirmed yet — user must verify with a code first.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        # Delete any unconfirmed device to allow re-setup
+        MFADevice.objects.filter(user=user, is_confirmed=False).delete()
+
+        if MFADevice.objects.filter(user=user, is_confirmed=True).exists():
+            return Response(
+                {"detail": "MFA is already enabled. Disable it first to reconfigure."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        secret = generate_totp_secret()
+        plain_codes, hashed_codes = generate_backup_codes()
+
+        MFADevice.objects.create(
+            user=user,
+            encrypted_secret=encrypt_totp_secret(secret),
+            backup_codes=hashed_codes,
+            is_confirmed=False,
+        )
+
+        return Response({
+            "detail": "Scan the QR code with your authenticator app, then confirm with a code.",
+            "provisioning_uri": get_totp_provisioning_uri(secret, user.email),
+            "secret": secret,          # shown once — for manual entry
+            "backup_codes": plain_codes,  # shown once — user must save them
+        }, status=status.HTTP_200_OK)
+
+
+class MFASetupConfirmView(APIView):
+    """
+    POST {code}: Confirm TOTP setup by verifying the first code.
+    Enables MFA on the user account.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = MFASetupConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        device = MFADevice.objects.filter(user=user, is_confirmed=False).first()
+        if device is None:
+            return Response(
+                {"detail": "No pending MFA setup found. Start setup first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        secret = decrypt_totp_secret(device.encrypted_secret)
+        if not verify_totp_code(secret, serializer.validated_data["code"]):
+            return Response(
+                {"detail": "Invalid code. Please try again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        device.is_confirmed = True
+        device.save(update_fields=["is_confirmed"])
+
+        user.mfa_enabled = True
+        user.save(update_fields=["mfa_enabled"])
+
+        log_audit_event('MFA_ENABLED', request, user=user)
+        return Response({"detail": "MFA enabled successfully."}, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# MFA — Verify (login step 2)
+# ---------------------------------------------------------------------------
+
+class MFAVerifyView(APIView):
+    """
+    POST {mfa_token, code}: Validate TOTP (or backup code) after password login.
+    Issues JWT cookies on success.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = MFAVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        payload = verify_mfa_token(serializer.validated_data["mfa_token"])
+        if payload is None:
+            return Response(
+                {"detail": "Invalid or expired MFA token. Please log in again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(pk=payload["uid"])
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        device = MFADevice.objects.filter(user=user, is_confirmed=True).first()
+        if device is None:
+            return Response({"detail": "No MFA device configured."}, status=status.HTTP_400_BAD_REQUEST)
+
+        code = serializer.validated_data["code"]
+        secret = decrypt_totp_secret(device.encrypted_secret)
+
+        if verify_totp_code(secret, code):
+            # TOTP code valid
+            return _complete_login(user, request)
+
+        # Try backup code
+        idx = verify_backup_code(code, device.backup_codes)
+        if idx is not None:
+            # Consume the backup code (single-use)
+            codes = list(device.backup_codes)
+            codes.pop(idx)
+            device.backup_codes = codes
+            device.save(update_fields=["backup_codes"])
+            return _complete_login(user, request)
+
+        log_audit_event('LOGIN_FAILED', request, user=user, metadata={"reason": "bad_mfa_code"})
+        return Response({"detail": "Invalid code."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ---------------------------------------------------------------------------
+# MFA — Disable
+# ---------------------------------------------------------------------------
+
+class MFADisableView(APIView):
+    """DELETE: Disable MFA and remove the device."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        MFADevice.objects.filter(user=user).delete()
+        user.mfa_enabled = False
+        user.save(update_fields=["mfa_enabled"])
+        log_audit_event('MFA_DISABLED', request, user=user)
+        return Response({"detail": "MFA disabled."}, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# MFA — Regenerate backup codes
+# ---------------------------------------------------------------------------
+
+class MFABackupCodesRegenerateView(APIView):
+    """POST: Generate a fresh set of backup codes (requires confirmed MFA device)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        device = MFADevice.objects.filter(user=request.user, is_confirmed=True).first()
+        if device is None:
+            return Response({"detail": "MFA is not enabled."}, status=status.HTTP_400_BAD_REQUEST)
+
+        plain_codes, hashed_codes = generate_backup_codes()
+        device.backup_codes = hashed_codes
+        device.save(update_fields=["backup_codes"])
+
+        return Response({
+            "detail": "New backup codes generated. Save them securely.",
+            "backup_codes": plain_codes,
+        }, status=status.HTTP_200_OK)
 
 
 # ---------------------------------------------------------------------------

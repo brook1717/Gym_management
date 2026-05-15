@@ -1,9 +1,15 @@
 """
 Service layer for token blacklisting via Redis, session/audit helpers,
-and email verification / password reset flows.
+email verification / password reset flows, OAuth exchange, and MFA/TOTP.
 """
+import hashlib
+import secrets
 import uuid
 from datetime import timedelta
+
+import pyotp
+import requests as http_requests
+from cryptography.fernet import Fernet, InvalidToken as FernetInvalidToken
 
 from django.conf import settings
 from django.core import signing
@@ -207,3 +213,168 @@ def send_password_reset_email(user):
 def revoke_all_sessions(user):
     """Deactivate every active session for a user."""
     UserSession.objects.filter(user=user, is_active=True).update(is_active=False)
+
+
+# ---------------------------------------------------------------------------
+# OAuth 2.0 — provider token exchange & user-info fetching
+# ---------------------------------------------------------------------------
+
+def exchange_oauth_code(provider: str, code: str) -> dict:
+    """
+    Exchange an authorization code for an access token with the given provider,
+    then fetch user info.  Returns dict with keys: email, full_name, provider.
+    Raises ValueError on any provider / network error.
+    """
+    cfg = settings.OAUTH_PROVIDERS.get(provider)
+    if cfg is None:
+        raise ValueError(f"Unknown OAuth provider: {provider}")
+
+    # 1. Exchange code → access token
+    token_payload = {
+        "client_id": cfg["client_id"],
+        "client_secret": cfg["client_secret"],
+        "code": code,
+        "redirect_uri": cfg["redirect_uri"],
+    }
+
+    if provider == "google":
+        token_payload["grant_type"] = "authorization_code"
+
+    headers = {"Accept": "application/json"}
+    token_resp = http_requests.post(cfg["token_url"], data=token_payload, headers=headers, timeout=10)
+    if token_resp.status_code != 200:
+        raise ValueError(f"Token exchange failed: {token_resp.text}")
+
+    token_data = token_resp.json()
+    access_token = token_data.get("access_token")
+    if not access_token:
+        raise ValueError("No access_token in provider response.")
+
+    # 2. Fetch user info
+    auth_header = {"Authorization": f"Bearer {access_token}"}
+
+    if provider == "google":
+        info_resp = http_requests.get(cfg["userinfo_url"], headers=auth_header, timeout=10)
+        info = info_resp.json()
+        return {
+            "email": info.get("email", ""),
+            "full_name": info.get("name", ""),
+            "provider": "google",
+        }
+
+    if provider == "github":
+        info_resp = http_requests.get(cfg["userinfo_url"], headers=auth_header, timeout=10)
+        info = info_resp.json()
+        email = info.get("email") or ""
+        # GitHub may hide email — fetch from /user/emails
+        if not email:
+            emails_resp = http_requests.get(cfg["emails_url"], headers=auth_header, timeout=10)
+            for e in emails_resp.json():
+                if e.get("primary") and e.get("verified"):
+                    email = e["email"]
+                    break
+        return {
+            "email": email,
+            "full_name": info.get("name") or info.get("login", ""),
+            "provider": "github",
+        }
+
+    raise ValueError(f"Unsupported provider: {provider}")
+
+
+# ---------------------------------------------------------------------------
+# TOTP encryption helpers (Fernet)
+# ---------------------------------------------------------------------------
+
+def _get_fernet() -> Fernet:
+    """Build a Fernet instance from the configured encryption key."""
+    key = settings.MFA_ENCRYPTION_KEY
+    return Fernet(key.encode() if isinstance(key, str) else key)
+
+
+def encrypt_totp_secret(secret: str) -> str:
+    """Encrypt a TOTP secret for storage."""
+    return _get_fernet().encrypt(secret.encode()).decode()
+
+
+def decrypt_totp_secret(encrypted: str) -> str:
+    """Decrypt a stored TOTP secret."""
+    try:
+        return _get_fernet().decrypt(encrypted.encode()).decode()
+    except FernetInvalidToken:
+        raise ValueError("Failed to decrypt TOTP secret — key mismatch?")
+
+
+# ---------------------------------------------------------------------------
+# TOTP / MFA helpers
+# ---------------------------------------------------------------------------
+
+def generate_totp_secret() -> str:
+    """Generate a new random TOTP secret (base32 encoded)."""
+    return pyotp.random_base32()
+
+
+def get_totp_provisioning_uri(secret: str, user_email: str) -> str:
+    """Build an otpauth:// URI for QR code scanning."""
+    return pyotp.TOTP(secret).provisioning_uri(
+        name=user_email,
+        issuer_name=settings.MFA_ISSUER_NAME,
+    )
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    """Verify a 6-digit TOTP code with a ±1 window."""
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)
+
+
+# ---------------------------------------------------------------------------
+# Backup codes
+# ---------------------------------------------------------------------------
+
+def generate_backup_codes(count: int | None = None) -> tuple[list[str], list[str]]:
+    """
+    Generate plaintext backup codes and their SHA-256 hashes.
+    Returns (plain_codes, hashed_codes).
+    """
+    if count is None:
+        count = settings.MFA_BACKUP_CODE_COUNT
+    plain = [secrets.token_hex(4).upper() for _ in range(count)]     # e.g. "A3F1B2C4"
+    hashed = [hashlib.sha256(c.encode()).hexdigest() for c in plain]
+    return plain, hashed
+
+
+def verify_backup_code(code: str, hashed_codes: list[str]) -> int | None:
+    """
+    Check a backup code against the stored hashes.
+    Returns the index of the matching hash, or None.
+    """
+    h = hashlib.sha256(code.strip().upper().encode()).hexdigest()
+    try:
+        return hashed_codes.index(h)
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# MFA challenge token (signed, short-lived)
+# ---------------------------------------------------------------------------
+
+def generate_mfa_token(user) -> str:
+    """Issue a short-lived signed token that proves password auth passed."""
+    return signing.dumps(
+        {"uid": str(user.pk), "purpose": "mfa-challenge"},
+        salt=settings.MFA_TOKEN_SALT,
+    )
+
+
+def verify_mfa_token(token: str) -> dict | None:
+    """Validate an MFA challenge token. Returns payload or None."""
+    try:
+        return signing.loads(
+            token,
+            salt=settings.MFA_TOKEN_SALT,
+            max_age=settings.MFA_TOKEN_MAX_AGE,
+        )
+    except (signing.SignatureExpired, signing.BadSignature):
+        return None
