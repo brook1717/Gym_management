@@ -1,0 +1,156 @@
+# ---------------------------------------------------------------------------
+# docker-compose.yml — Gym Management Backend Stack
+# ---------------------------------------------------------------------------
+# Services: Django API, PostgreSQL, Redis, Celery Worker
+#
+# AWS PRODUCTION NOTES:
+# In production on AWS, replace the following with managed services:
+#   - PostgreSQL → Amazon RDS (inject DATABASE_URL)
+#   - Redis     → Amazon ElastiCache (inject REDIS_URL)
+#   - Static/Media files → Amazon S3 + CloudFront (inject AWS_STORAGE_BUCKET_NAME)
+#   - Secrets   → AWS Secrets Manager / Parameter Store
+# ---------------------------------------------------------------------------
+
+version: "3.9"
+
+x-common-env: &common-env
+  # -------------------------------------------------------------------------
+  # Django core
+  # -------------------------------------------------------------------------
+  SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+  DEBUG: ${DEBUG:-0}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+
+  # -------------------------------------------------------------------------
+  # Database — in AWS, replace with RDS endpoint
+  # Example: postgres://user:pass@your-rds-instance.region.rds.amazonaws.com:5432/gym_db
+  # -------------------------------------------------------------------------
+  DATABASE_URL: ${DATABASE_URL:-postgres://gym_user:gym_pass@db:5432/gym_db}
+
+  # -------------------------------------------------------------------------
+  # Redis — in AWS, replace with ElastiCache endpoint
+  # Example: redis://your-cluster.xxxxx.cache.amazonaws.com:6379/0
+  # -------------------------------------------------------------------------
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+
+  # -------------------------------------------------------------------------
+  # Email — in AWS, use SES
+  # -------------------------------------------------------------------------
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+  EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+  EMAIL_PORT: ${EMAIL_PORT:-587}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@gym.example.com}
+
+  # -------------------------------------------------------------------------
+  # Frontend URL (for CORS, CSRF, email links)
+  # -------------------------------------------------------------------------
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+
+  # -------------------------------------------------------------------------
+  # OAuth providers
+  # -------------------------------------------------------------------------
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+  GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+
+  # -------------------------------------------------------------------------
+  # MFA encryption key (Fernet) — store in AWS Secrets Manager in production
+  # -------------------------------------------------------------------------
+  MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-ChZrx-wKujPV283ihCsYnYwRUWlvxSBFKX_qFobGUz4=}
+
+  # -------------------------------------------------------------------------
+  # AWS S3 (for static/media files in production)
+  # Uncomment and inject via environment or .env file
+  # -------------------------------------------------------------------------
+  # AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  # AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  # AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-}
+  # AWS_S3_REGION_NAME: ${AWS_S3_REGION_NAME:-us-east-1}
+
+
+services:
+  # ===========================================================================
+  # Django API (Gunicorn)
+  # ===========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *common-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - media_data:/app/media
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Celery Worker (async tasks: emails, reports, etc.)
+  # ===========================================================================
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      celery -A gym_management worker
+      --loglevel=info
+      --concurrency=2
+    environment:
+      <<: *common-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
+  # PostgreSQL — replace with Amazon RDS in production
+  # ===========================================================================
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gym_db
+      POSTGRES_USER: gym_user
+      POSTGRES_PASSWORD: gym_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gym_user -d gym_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Redis — replace with Amazon ElastiCache in production
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:

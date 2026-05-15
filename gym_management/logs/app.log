@@ -1,0 +1,7 @@
+{"timestamp": "2026-05-15T06:36:37.655669+00:00", "level": "WARNING", "logger": "django.request", "message": "Forbidden: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 403}
+{"timestamp": "2026-05-15T06:36:37.686626+00:00", "level": "WARNING", "logger": "django.request", "message": "Forbidden: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 403}
+{"timestamp": "2026-05-15T06:36:37.744639+00:00", "level": "WARNING", "logger": "django.request", "message": "Forbidden: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 403}
+{"timestamp": "2026-05-15T06:36:37.792048+00:00", "level": "WARNING", "logger": "django.request", "message": "Forbidden: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 403}
+{"timestamp": "2026-05-15T06:36:37.811729+00:00", "level": "WARNING", "logger": "django.request", "message": "Forbidden: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 403}
+{"timestamp": "2026-05-15T06:36:37.811729+00:00", "level": "WARNING", "logger": "django.request", "message": "Too Many Requests: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 429}
+{"timestamp": "2026-05-15T06:36:37.823417+00:00", "level": "WARNING", "logger": "django.request", "message": "Too Many Requests: /api/auth/login/", "module": "log", "function": "log_response", "line": 253, "status_code": 429}

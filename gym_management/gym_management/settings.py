@@ -89,12 +89,16 @@ WSGI_APPLICATION = 'gym_management.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# Uses DATABASE_URL in production (Docker / AWS RDS); falls back to SQLite for local dev.
+
+import dj_database_url
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 # ---------------------------------------------------------------------------
@@ -131,6 +135,30 @@ if DEBUG:
 
 # Redis key prefix for blacklisted refresh tokens
 REDIS_TOKEN_BLACKLIST_PREFIX = "bl:refresh:"
+
+# ---------------------------------------------------------------------------
+# Celery configuration (uses same Redis instance)
+# ---------------------------------------------------------------------------
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
+
+
+# ---------------------------------------------------------------------------
+# Password hashers — Argon2 is preferred (OWASP recommendation)
+# ---------------------------------------------------------------------------
+
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+]
 
 
 # Password validation
@@ -213,6 +241,13 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '5/min',
+        'password_reset': '3/min',
+        'token_refresh': '10/min',
+        'mfa_verify': '5/min',
+    },
 }
 
 SPECTACULAR_SETTINGS = {
@@ -226,8 +261,13 @@ SPECTACULAR_SETTINGS = {
 #the user model
 AUTH_USER_MODEL = "users.User"
 
-# to allow js to read the CSRF cookie
-CSRF_COOKIE_HTTPONLY = False
+# CSRF configuration for SPA + cookie-based JWT auth
+CSRF_COOKIE_HTTPONLY = False          # JS must read the CSRF cookie to send the X-CSRFToken header
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG        # Require HTTPS in production
+CSRF_TRUSTED_ORIGINS = [
+    os.environ.get("FRONTEND_URL", "http://localhost:3000"),
+]
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -295,6 +335,74 @@ MFA_ISSUER_NAME = "Gym Management"
 MFA_TOKEN_SALT = "mfa-challenge"
 MFA_TOKEN_MAX_AGE = 60 * 5          # 5 minutes to complete MFA challenge
 MFA_BACKUP_CODE_COUNT = 10
+
+
+# ---------------------------------------------------------------------------
+# Structured Logging
+# ---------------------------------------------------------------------------
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "sensitive_data": {
+            "()": "gym_management.logging_filters.SensitiveDataFilter",
+        },
+    },
+    "formatters": {
+        "json": {
+            "()": "gym_management.logging_filters.JSONFormatter",
+        },
+        "verbose": {
+            "format": "{levelname} {asctime} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json" if not DEBUG else "verbose",
+            "filters": ["sensitive_data"],
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "logs" / "app.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "json",
+            "filters": ["sensitive_data"],
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console", "file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "users": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "celery": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
+# Ensure the logs directory exists
+(BASE_DIR / "logs").mkdir(exist_ok=True)
 
 
 CHAPA_PUBLIC_KEY = os.environ.get('CHAPA_PUBLIC_KEY', 'CHAPUBK_TEST-tVCPOaCbJz1qHETIJinaXc3x9IJoAst4')

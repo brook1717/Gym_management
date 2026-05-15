@@ -17,6 +17,7 @@ from .serializers import (
     OAuthCallbackSerializer, MFASetupConfirmSerializer, MFAVerifySerializer,
 )
 from .permissions import AdminOnly, IsAdmin, IsTrainer, IsOwnerOrReadOnly, IsSelfOrAdmin
+from .throttles import LoginRateThrottle, PasswordResetRateThrottle, TokenRefreshRateThrottle, MFAVerifyRateThrottle
 from .services import (
     blacklist_refresh_jti,
     is_refresh_jti_blacklisted,
@@ -137,6 +138,7 @@ def _complete_login(user, request):
 class Login_view(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         email = request.data.get('email')
@@ -180,6 +182,7 @@ class Login_view(APIView):
 class TokenRefreshView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [TokenRefreshRateThrottle]
 
     def post(self, request):
         raw_refresh = request.COOKIES.get(settings.JWT_AUTH_REFRESH_COOKIE)
@@ -321,6 +324,7 @@ class PasswordResetView(APIView):
     """Request a password-reset email. Always returns 200 to avoid email enumeration."""
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
@@ -536,6 +540,7 @@ class MFAVerifyView(APIView):
     """
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [MFAVerifyRateThrottle]
 
     def post(self, request):
         serializer = MFAVerifySerializer(data=request.data)
